@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPX Track Replanner</title>
+    <meta name="description" content="Replan GPX tracks to start from your location">
+    <meta name="theme-color" content="#1e293b">
+    
+    <!-- PWA Manifest inline -->
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiR1BYIFRyYWNrIFJlcGxhbm5lciIsInNob3J0X25hbWUiOiJHUFggUmVwbGFuIiwiZGVzY3JpcHRpb24iOiJSZXBsYW4gR1BYIHRyYWNrcyB0byBzdGFydCBmcm9tIHlvdXIgbG9jYXRpb24iLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzFlMjkzYiIsInRoZW1lX2NvbG9yIjoiIzFlMjkzYiIsIm9yaWVudGF0aW9uIjoicG9ydHJhaXQtcHJpbWFyeSIsImljb25zIjpbeyJzcmMiOiJkYXRhOmltYWdlL3N2Zyt4bWw7YmFzZTY0LFBITjJaeUIzYVdSMGFEMGlNVEk0SWlCb1pXbG5hSFE5SWpFeU9DSWdlbTFzYm5NOUltaDBkSEE2THk5M2QzY3Vkek11YjNKbkx6SXdNREF2YzNabklqNDhjbVZqZENCM2FXUjBhRDBpTVRJNElpQm9aV2xuYUhROUlqRXlPQ0lnWm1sc2JEMGlJekkxTmpObFlpSXZQanh3WVhSb0lHUTlJazAwTWlBME1pQkRORElnTlRjdU5DQTFNQTR6SURZNUlEWTBJRFk1SURjNExqY2dOamtnT0RBZ05UY3VOQ0E0TUNBME1pQkROalF1TmlBME1pQTFNeUE1TUM0eklETXlJRGd3SURNeUlEWTBJRE15SURRNExEWWdNemNnTXpJZ01qWWdORGdnTWpZZ05qUWdNallnT0RBZ016Y2dPREFnTlRJdU5DQTRNQ0EyTkNBMk9TQTJOQ0ExTXlBMk5DQTBNaUJhSWlCbWFXeHNQU0ozYUdsMFpTSXZQand2YzNablBnPT0iLCJzaXplcyI6IjEyOHgxMjgiLCJ0eXBlIjoiaW1hZ2Uvc3ZnK3htbCJ9XX0=">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%);
+            color: white;
+            padding: 1rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            z-index: 1001;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #60a5fa, #34d399, #fbbf24);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: 1px solid #2563eb;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: 1px solid #059669;
+        }
+        
+        .btn-success:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+        }
+        
+        .btn-success:disabled {
+            background: #374151;
+            cursor: not-allowed;
+            opacity: 0.6;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            border: 1px solid #d97706;
+        }
+        
+        .btn-warning:hover {
+            background: linear-gradient(135deg, #d97706, #b45309);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+        }
+        
+        .btn-warning:disabled {
+            background: #374151;
+            cursor: not-allowed;
+            opacity: 0.6;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        #map {
+            flex: 1;
+            z-index: 1;
+            position: relative;
+            border-top: 1px solid #334155;
+        }
+        
+        .status {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            right: 1rem;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            z-index: 1000;
+            max-width: 400px;
+            border: 1px solid #334155;
+        }
+        
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #f1f5f9;
+        }
+        
+        .status-message {
+            color: #cbd5e1;
+            font-size: 0.9rem;
+        }
+        
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #334155;
+            border-top: 3px solid #60a5fa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: rgba(153, 27, 27, 0.95);
+            border: 1px solid #dc2626;
+            color: #fecaca;
+        }
+        
+        .success {
+            background: rgba(5, 150, 105, 0.95);
+            border: 1px solid #059669;
+            color: #a7f3d0;
+        }
+        
+        .custom-marker {
+            background: #ef4444;
+            border: 3px solid white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        
+        .start-marker {
+            background: #10b981;
+        }
+        
+        .user-start-marker {
+            background: #f59e0b;
+        }
+        
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            color: #e2e8f0;
+        }
+        
+        .loading-content {
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #334155;
+            border-top: 5px solid #60a5fa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        /* Remove dark filter - keep natural map colors */
+        .leaflet-tile-pane {
+            /* No filter applied - keep original map appearance */
+        }
+        
+        @media (max-width: 640px) {
+            .header h1 {
+                font-size: 1.2rem;
+            }
+            
+            .btn {
+                font-size: 0.8rem;
+                padding: 0.4rem 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚴 GPX Track Replanner</h1>
+        <div class="controls">
+            <label for="file-input" class="btn btn-primary">
+                📁 Load GPX
+            </label>
+            <input type="file" id="file-input" accept=".gpx">
+            
+            <button id="use-location" class="btn btn-primary">
+                📍 Use My Location
+            </button>
+            
+            <button id="pick-location" class="btn btn-primary">
+                🗺️ Pick on Map
+            </button>
+            
+            <button id="process" class="btn btn-success" disabled>
+                ⚡ Replan Route
+            </button>
+            
+            <button id="download" class="btn btn-warning" disabled>
+                💾 Download GPX
+            </button>
+        </div>
+    </div>
+    
+    <div id="map">
+        <div id="loading" class="loading-overlay">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <p>Loading map...</p>
+            </div>
+        </div>
+    </div>
+    
+    <div id="status" class="status" style="display: none;">
+        <div class="status-title">Status</div>
+        <div class="status-message"></div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    
+    <script>
+        // Wait for Leaflet to load
+        function waitForLeaflet() {
+            return new Promise((resolve) => {
+                if (typeof L !== 'undefined') {
+                    resolve();
+                } else {
+                    setTimeout(() => waitForLeaflet().then(resolve), 100);
+                }
+            });
+        }
+        
+        // OpenRouteService API Key (free tier)
+        const ORS_API_KEY = '5b3ce3597851110001cf6248aa7b6f4c305d4b8886e7e1f4f3e6e35e';
+        
+        class GPXReplanner {
+            constructor() {
+                this.map = null;
+                this.originalTrack = null;
+                this.startLocation = null;
+                this.modifiedTrack = null;
+                this.layers = {
+                    original: null,
+                    routing: null,
+                    modified: null,
+                    markers: []
+                };
+                this.pickingLocation = false;
+                this.init();
+            }
+            
+            async init() {
+                try {
+                    // Wait for Leaflet to be available
+                    await waitForLeaflet();
+                    
+                    // Initialize map with mountain terrain
+                    this.map = L.map('map').setView([51.505, -0.09], 13);
+                    
+                    // Add terrain layer with hillshading
+                    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                        attribution: 'Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap (CC-BY-SA)',
+                        maxZoom: 17
+                    }).addTo(this.map);
+                    
+                    // Alternative terrain option (comment out the above and uncomment below if preferred)
+                    /*
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        attribution: 'Tiles © Esri'
+                    }).addTo(this.map);
+                    */
+                    
+                    // Hide loading overlay
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    // Setup event listeners
+                    document.getElementById('file-input').addEventListener('change', (e) => this.loadGPX(e));
+                    document.getElementById('use-location').addEventListener('click', () => this.useCurrentLocation());
+                    document.getElementById('pick-location').addEventListener('click', () => this.enableLocationPicking());
+                    document.getElementById('process').addEventListener('click', () => this.processRoute());
+                    document.getElementById('download').addEventListener('click', () => this.downloadGPX());
+                    
+                    // Map click handler
+                    this.map.on('click', (e) => this.handleMapClick(e));
+                    
+                    this.showStatus('Ready to load GPX file', 'info');
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    document.getElementById('loading').innerHTML = '<p>Error loading map. Please refresh the page.</p>';
+                }
+            }
+            
+            showStatus(message, type = 'info') {
+                const status = document.getElementById('status');
+                const statusMessage = status.querySelector('.status-message');
+                
+                status.style.display = 'block';
+                status.className = 'status';
+                
+                if (type === 'error') status.classList.add('error');
+                if (type === 'success') status.classList.add('success');
+                
+                statusMessage.innerHTML = message;
+                
+                if (type === 'success' || type === 'info') {
+                    setTimeout(() => {
+                        status.style.display = 'none';
+                    }, 5000);
+                }
+            }
+            
+            async loadGPX(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                this.showStatus('Loading GPX file...', 'info');
+                
+                try {
+                    const text = await file.text();
+                    const parser = new DOMParser();
+                    const gpx = parser.parseFromString(text, 'text/xml');
+                    
+                    // Check for parsing errors
+                    if (gpx.querySelector('parsererror')) {
+                        throw new Error('Invalid GPX file format');
+                    }
+                    
+                    // Extract track points
+                    const trackPoints = [];
+                    const trkpts = gpx.getElementsByTagName('trkpt');
+                    
+                    for (let i = 0; i < trkpts.length; i++) {
+                        const lat = parseFloat(trkpts[i].getAttribute('lat'));
+                        const lon = parseFloat(trkpts[i].getAttribute('lon'));
+                        const ele = trkpts[i].getElementsByTagName('ele')[0];
+                        
+                        if (!isNaN(lat) && !isNaN(lon)) {
+                            trackPoints.push({
+                                lat,
+                                lon,
+                                ele: ele ? parseFloat(ele.textContent) : null
+                            });
+                        }
+                    }
+                    
+                    if (trackPoints.length === 0) {
+                        throw new Error('No track points found in GPX file');
+                    }
+                    
+                    this.originalTrack = trackPoints;
+                    this.displayOriginalTrack();
+                    this.showStatus(`Loaded ${trackPoints.length} track points. Now set your start location.`, 'success');
+                    
+                } catch (error) {
+                    this.showStatus(`Error loading GPX: ${error.message}`, 'error');
+                    console.error('GPX loading error:', error);
+                }
+            }
+            
+            displayOriginalTrack() {
+                // Clear existing layers
+                if (this.layers.original) {
+                    this.map.removeLayer(this.layers.original);
+                }
+                this.layers.markers.forEach(m => this.map.removeLayer(m));
+                this.layers.markers = [];
+                
+                // Display new track with glowing effect
+                const latlngs = this.originalTrack.map(p => [p.lat, p.lon]);
+                
+                // Add glow effect with multiple polylines
+                L.polyline(latlngs, {
+                    color: '#60a5fa',
+                    weight: 8,
+                    opacity: 0.3
+                }).addTo(this.map);
+                
+                this.layers.original = L.polyline(latlngs, {
+                    color: '#3b82f6',
+                    weight: 4,
+                    opacity: 0.9
+                }).addTo(this.map);
+                
+                // Add start/end markers with custom icons
+                const startIcon = L.divIcon({
+                    className: 'custom-marker start-marker',
+                    iconSize: [20, 20]
+                });
+                
+                const endIcon = L.divIcon({
+                    className: 'custom-marker',
+                    iconSize: [20, 20]
+                });
+                
+                const startMarker = L.marker([this.originalTrack[0].lat, this.originalTrack[0].lon], {icon: startIcon})
+                    .addTo(this.map)
+                    .bindPopup('Original Start');
+                    
+                const endMarker = L.marker([this.originalTrack[this.originalTrack.length - 1].lat, this.originalTrack[this.originalTrack.length - 1].lon], {icon: endIcon})
+                    .addTo(this.map)
+                    .bindPopup('End');
+                
+                this.layers.markers.push(startMarker, endMarker);
+                
+                // Fit map to track
+                this.map.fitBounds(this.layers.original.getBounds().pad(0.1));
+                
+                this.updateButtonStates();
+            }
+            
+            useCurrentLocation() {
+                if (!navigator.geolocation) {
+                    this.showStatus('Geolocation not supported by this browser', 'error');
+                    return;
+                }
+                
+                this.showStatus('Getting your location... (Please allow location access when prompted)', 'info');
+                
+                // Check if location is already denied
+                if (navigator.permissions) {
+                    navigator.permissions.query({name: 'geolocation'}).then((result) => {
+                        if (result.state === 'denied') {
+                            this.showStatus('Location access denied in browser settings. Please enable it in your browser settings or use "Pick on Map" instead.', 'error');
+                            return;
+                        }
+                    });
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        this.setStartLocation(
+                            position.coords.latitude,
+                            position.coords.longitude
+                        );
+                        this.showStatus('Location set successfully', 'success');
+                    },
+                    (error) => {
+                        let errorMsg = '';
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMsg = 'Location access denied. Please:<br>1. Click the location icon in your browser address bar<br>2. Select "Allow" for location access<br>3. Try again, or use "Pick on Map" instead';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMsg = 'Your location is unavailable. Please try "Pick on Map" instead.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMsg = 'Location request timed out. Please try again or use "Pick on Map".';
+                                break;
+                            default:
+                                e
