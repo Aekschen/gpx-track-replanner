@@ -17,7 +17,7 @@ A web-based tool to replan GPX cycling tracks to start from your location and cr
 
 ## 🚀 Live Demo
 
-**[Try it now on GitHub Pages](https://aekschen.github.io/gpx-track-replanner)**
+**[Try it now on GitHub Pages](https://aekschen.github.io/gpx-track-replanner/Screenshot.jpg)**
 
 ## 🎯 How It Works
 
