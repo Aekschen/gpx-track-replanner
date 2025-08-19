@@ -521,4 +521,314 @@
                                 errorMsg = 'Location request timed out. Please try again or use "Pick on Map".';
                                 break;
                             default:
-                                e
+                                errorMsg = `Location error: ${error.message}. Please try "Pick on Map" instead.`;
+                        }
+                        this.showStatus(errorMsg, 'error');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 60000 // Allow cached location up to 1 minute old
+                    }
+                );
+            }
+            
+            enableLocationPicking() {
+                this.pickingLocation = true;
+                this.map.getContainer().style.cursor = 'crosshair';
+                this.showStatus('Click on the map to set your start location', 'info');
+            }
+            
+            handleMapClick(e) {
+                if (!this.pickingLocation) return;
+                
+                this.setStartLocation(e.latlng.lat, e.latlng.lng);
+                this.pickingLocation = false;
+                this.map.getContainer().style.cursor = '';
+                this.showStatus('Start location set', 'success');
+            }
+            
+            setStartLocation(lat, lon) {
+                this.startLocation = { lat, lon };
+                
+                // Remove existing start location marker if any
+                if (this.startLocationMarker) {
+                    this.map.removeLayer(this.startLocationMarker);
+                }
+                
+                // Add new start marker with unique color
+                this.startLocationMarker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: 'custom-marker user-start-marker',
+                        iconSize: [20, 20]
+                    })
+                }).addTo(this.map).bindPopup('Your Start Location');
+                
+                this.updateButtonStates();
+            }
+            
+            updateButtonStates() {
+                const processBtn = document.getElementById('process');
+                const downloadBtn = document.getElementById('download');
+                
+                processBtn.disabled = !(this.originalTrack && this.startLocation);
+                downloadBtn.disabled = !this.modifiedTrack;
+            }
+            
+            findNearestPointOnTrack() {
+                let minDist = Infinity;
+                let nearestIndex = 0;
+                
+                for (let i = 0; i < this.originalTrack.length; i++) {
+                    const dist = this.calculateDistance(
+                        this.startLocation.lat,
+                        this.startLocation.lon,
+                        this.originalTrack[i].lat,
+                        this.originalTrack[i].lon
+                    );
+                    
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestIndex = i;
+                    }
+                }
+                
+                return nearestIndex;
+            }
+            
+            calculateDistance(lat1, lon1, lat2, lon2) {
+                const R = 6371; // km
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
+            }
+            
+            async processRoute() {
+                this.showStatus('<span class="loader"></span> Processing route and creating loop...', 'info');
+                
+                try {
+                    // Find nearest point on track
+                    const nearestIndex = this.findNearestPointOnTrack();
+                    const nearestPoint = this.originalTrack[nearestIndex];
+                    
+                    // Get routing from start to nearest point
+                    const routeToTrack = await this.getRoute(
+                        this.startLocation,
+                        nearestPoint
+                    );
+                    
+                    // Get routing from nearest point back to start (for the loop)
+                    const routeBackToStart = await this.getRoute(
+                        nearestPoint,
+                        this.startLocation
+                    );
+                    
+                    // Create the full loop: start -> track -> complete original track -> back to start
+                    const fullOriginalTrack = [
+                        ...this.originalTrack.slice(nearestIndex),
+                        ...this.originalTrack.slice(0, nearestIndex)
+                    ];
+                    
+                    // Remove duplicates at connection points
+                    let cleanRouteToTrack = [...routeToTrack];
+                    let cleanFullTrack = [...fullOriginalTrack];
+                    let cleanRouteBack = [...routeBackToStart];
+                    
+                    // Remove duplicate between route to track and track start
+                    if (cleanRouteToTrack.length > 0 && cleanFullTrack.length > 0) {
+                        const lastRoute = cleanRouteToTrack[cleanRouteToTrack.length - 1];
+                        const firstTrack = cleanFullTrack[0];
+                        
+                        if (Math.abs(lastRoute.lat - firstTrack.lat) < 0.00001 && 
+                            Math.abs(lastRoute.lon - firstTrack.lon) < 0.00001) {
+                            cleanRouteToTrack.pop();
+                        }
+                    }
+                    
+                    // Remove duplicate between track end and route back start
+                    if (cleanFullTrack.length > 0 && cleanRouteBack.length > 0) {
+                        const lastTrack = cleanFullTrack[cleanFullTrack.length - 1];
+                        const firstRouteBack = cleanRouteBack[0];
+                        
+                        if (Math.abs(lastTrack.lat - firstRouteBack.lat) < 0.00001 && 
+                            Math.abs(lastTrack.lon - firstRouteBack.lon) < 0.00001) {
+                            cleanRouteBack.shift();
+                        }
+                    }
+                    
+                    // Create the complete loop
+                    this.modifiedTrack = [
+                        ...cleanRouteToTrack,
+                        ...cleanFullTrack,
+                        ...cleanRouteBack
+                    ];
+                    
+                    this.displayModifiedTrack();
+                    
+                    const totalDistance = this.calculateTrackDistance(this.modifiedTrack);
+                    this.showStatus(`Loop created! Total points: ${this.modifiedTrack.length}, Distance: ${totalDistance.toFixed(1)} km`, 'success');
+                    this.updateButtonStates();
+                    
+                } catch (error) {
+                    this.showStatus(`Error processing route: ${error.message}`, 'error');
+                    console.error('Processing error:', error);
+                }
+            }
+            
+            calculateTrackDistance(track) {
+                let totalDistance = 0;
+                for (let i = 1; i < track.length; i++) {
+                    totalDistance += this.calculateDistance(
+                        track[i-1].lat, track[i-1].lon,
+                        track[i].lat, track[i].lon
+                    );
+                }
+                return totalDistance;
+            }
+            
+            async getRoute(start, end) {
+                const url = `https://api.openrouteservice.org/v2/directions/cycling-regular?api_key=${ORS_API_KEY}&start=${start.lon},${start.lat}&end=${end.lon},${end.lat}`;
+                
+                try {
+                    const response = await fetch(url);
+                    
+                    if (!response.ok) {
+                        if (response.status === 403) {
+                            throw new Error('Routing API access denied. Using direct connection.');
+                        }
+                        throw new Error(`Routing API error: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (!data.features || data.features.length === 0) {
+                        throw new Error('No route found');
+                    }
+                    
+                    const coordinates = data.features[0].geometry.coordinates;
+                    return coordinates.map(coord => ({
+                        lon: coord[0],
+                        lat: coord[1],
+                        ele: coord[2] || null
+                    }));
+                    
+                } catch (error) {
+                    console.error('Routing error:', error);
+                    // Fallback to straight line
+                    this.showStatus('Using direct connection (routing service unavailable)', 'info');
+                    return [start, end];
+                }
+            }
+            
+            displayModifiedTrack() {
+                // Clear existing modified track
+                if (this.layers.modified) {
+                    this.map.removeLayer(this.layers.modified);
+                }
+                if (this.layers.modifiedGlow) {
+                    this.map.removeLayer(this.layers.modifiedGlow);
+                }
+                
+                // Display new track with glow effect
+                const latlngs = this.modifiedTrack.map(p => [p.lat, p.lon]);
+                
+                // Add glow effect
+                this.layers.modifiedGlow = L.polyline(latlngs, {
+                    color: '#34d399',
+                    weight: 8,
+                    opacity: 0.3
+                }).addTo(this.map);
+                
+                this.layers.modified = L.polyline(latlngs, {
+                    color: '#10b981',
+                    weight: 4,
+                    opacity: 0.9,
+                    dashArray: '10, 5'
+                }).addTo(this.map);
+                
+                // Fit map to show both tracks
+                const bounds = L.latLngBounds(latlngs);
+                this.map.fitBounds(bounds.pad(0.1));
+            }
+            
+            downloadGPX() {
+                if (!this.modifiedTrack) return;
+                
+                const gpx = this.createGPXString(this.modifiedTrack);
+                const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `replanned_loop_track_${new Date().getTime()}.gpx`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.showStatus('GPX loop file downloaded!', 'success');
+            }
+            
+            createGPXString(trackPoints) {
+                const timestamp = new Date().toISOString();
+                
+                let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="GPX Track Replanner"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>Replanned Loop Track</name>
+    <desc>Loop track starting and ending at your location</desc>
+    <time>${timestamp}</time>
+  </metadata>
+  <trk>
+    <name>Replanned Cycling Loop</name>
+    <type>cycling</type>
+    <trkseg>`;
+                
+                trackPoints.forEach(point => {
+                    gpx += `
+      <trkpt lat="${point.lat}" lon="${point.lon}">`;
+                    if (point.ele !== null && !isNaN(point.ele)) {
+                        gpx += `
+        <ele>${point.ele}</ele>`;
+                    }
+                    gpx += `
+      </trkpt>`;
+                });
+                
+                gpx += `
+    </trkseg>
+  </trk>
+</gpx>`;
+                
+                return gpx;
+            }
+        }
+        
+        // Initialize app when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                new GPXReplanner();
+            });
+        } else {
+            new GPXReplanner();
+        }
+        
+        // Simple service worker registration for PWA
+        if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+            window.addEventListener('load', () => {
+                // Register service worker for PWA functionality
+                navigator.serviceWorker.register('data:application/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdpbnN0YWxsJywgZnVuY3Rpb24oZXZlbnQpIHsKICBldmVudC53YWl0VW50aWwoc2VsZi5za2lwV2FpdGluZygpKTsKfSk7CgpzZWxmLmFkZEV2ZW50TGlzdGVuZXIoJ2ZldGNoJywgZnVuY3Rpb24oZXZlbnQpIHsKICBldmVudC5yZXNwb25kV2l0aChmZXRjaChldmVudC5yZXF1ZXN0KSk7Cn0pOw==').catch(err => {
+                    console.log('SW registration failed');
+                });
+            });
+        }
+    </script>
+</body>
+</html>
