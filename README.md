@@ -1,8 +1,10 @@
 # 🚴 GPX Track Replanner
 
+Created and deployed using claude 4.1 fully on mobile during vacation ;)
+
 A web-based tool to replan GPX cycling tracks to start from your location and create perfect loops. Transform any GPX route into a customized loop that begins and ends at your chosen starting point.
 
-![GPX Track Replanner Screenshot](https://via.placeholder.com/800x400/1e293b/60a5fa?text=GPX+Track+Replanner)
+![GPX Track Replanner Screenshot](https://aekschen.github.io/gpx-track-replanner/Screenshot.jpg)**)
 
 ## ✨ Features
 
@@ -17,7 +19,7 @@ A web-based tool to replan GPX cycling tracks to start from your location and cr
 
 ## 🚀 Live Demo
 
-**[Try it now on GitHub Pages](https://aekschen.github.io/gpx-track-replanner/Screenshot.jpg)**
+**[Try it now on GitHub Pages](https://aekschen.github.io/gpx-track-replanner)**
 
 ## 🎯 How It Works
 
